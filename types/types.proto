@@ -1,0 +1,182 @@
+syntax = "proto3";
+package types;
+
+option go_package = "git.bhex.io/chain/dsign/types";
+
+message KeyGenPhase1Msg {
+  string label_from = 1;         //发送该消息的节点下标
+  bytes pub_key_commit = 2;       //公钥commit
+  repeated bytes cof_commit = 3; //shamir系数commit
+  bytes NTilde = 4;
+  bytes h1 = 5;
+  bytes h2 = 6;
+  PQProof proof = 7;
+  bytes shamir_share_pub_key = 8;
+}
+
+message KeyGenPhase2Msg {
+  string label_from = 1;
+  string label_to = 2;
+  ShareXY share = 3;
+  bytes pub_key = 4;
+  bytes blind_factor = 5;
+}
+
+message KeyGenPhase3Msg {
+  string label_from = 1;
+  bytes shamir_pub = 2;
+  SchnorrProof proof = 3;
+}
+
+message KeySignPhase1Msg {
+  string label_from = 1;
+  string label_to = 2;
+  bytes message_k = 3;
+  bytes message_r = 4;
+  bytes sig_others_r_commit = 5;
+  PaillierPubKey paillier_pubKey = 6;
+  InitiatorRangeProof paillier_range_proof_k = 7;
+  InitiatorRangeProof paillier_range_proof_r = 8;
+}
+
+message KeySignPhase2Msg {
+  string label_from = 1;
+  string label_to = 2;
+  bytes message_k_response = 3;
+  bytes message_r_response = 4;
+  ResponderRangeProof paillier_range_proof_k = 5;
+  ResponderRangeProof paillier_range_proof_r = 6;
+}
+
+message KeySignPhase3And4Msg {
+  string label_from = 1;
+  bytes thea = 2;
+  SchnorrProof ki_proof = 3;
+  SigR sig_others_r = 4;
+  bytes blind_factor = 5;
+}
+
+message KeySignPhase5AMsg {
+  string label_from = 1;
+  bytes v_commit = 2;
+  bytes a_commit = 3;
+  bytes b_commit = 4;
+}
+
+message KeySignPhase5BMsg {
+  string label_from = 1;
+  SiProof proof = 2;
+  bytes v_blind_factor = 3;
+  bytes a_blind_factor = 4;
+  bytes b_blind_factor = 5;
+}
+
+message KeySignPhase5CMsg {
+  string label_from = 1;
+  bytes u_commit = 2;
+  bytes t_commit = 3;
+}
+
+message KeySignPhase5DMsg {
+  string label_from = 1;
+  SiCheck check = 2;
+  bytes u_blind_factor = 3;
+  bytes t_blind_factor = 4;
+}
+
+message KeySignPhase5EMsg {
+  string label_from = 1;
+  bytes sigr = 2;
+  bytes sigs = 3;
+  bytes v = 4;
+}
+
+message SigR {
+  bytes x = 1;
+  bytes y = 2;
+}
+
+message ShareXY {
+  bytes x = 1;
+  bytes y = 2;
+}
+
+message PaillierPubKey {
+  int64 len = 1;
+  bytes n = 2;   //n = p*q (where p & q are two primes)
+  bytes g = 3;   //g random integer in Z\*\n^2
+  bytes nsq = 4; //N^2
+}
+
+message InitiatorRangeProof {
+  bytes z = 1;
+  bytes w = 2;
+  bytes mu = 3;
+  bytes s = 4;
+  bytes s1 = 5;
+  bytes s2 = 6;
+}
+
+message ResponderRangeProof {
+  bytes mu_x = 1;
+  bytes mu_y = 2;
+  bytes z = 3;
+  bytes z_d = 4;
+  bytes t = 5;
+  bytes v = 6;
+  bytes w = 7;
+  bytes s = 8;
+  bytes s1 = 9;
+  bytes s2 = 10;
+  bytes t1 = 11;
+  bytes t2 = 12;
+  bytes x_x = 13;
+  bytes x_y = 14;
+}
+
+message SchnorrProof {
+  bytes pub_key = 1;
+  bytes num = 2;
+}
+
+message SiProof {
+  bytes v_x = 1;
+  bytes v_y = 2;
+  bytes a_x = 3;
+  bytes a_y = 4;
+  bytes b_x = 5;
+  bytes b_y = 6;
+  bytes alpha_x = 7;
+  bytes alpha_y = 8;
+  bytes beta_x = 9;
+  bytes beta_y = 10;
+  bytes t = 11;
+  bytes u = 12;
+}
+
+message SiCheck {
+  bytes u = 1;
+  bytes t = 2;
+}
+
+message PQProof {
+  repeated bytes zi = 1;
+  repeated bytes xi = 2;
+  bytes y = 3;
+}
+
+message KeyGenData {
+  string label = 1;
+  uint64 sign_threshold = 2;
+  repeated ParameterMap paras = 3;
+  bytes pub_key_sum = 4;
+  repeated string key_nodes = 5;
+}
+
+message ParameterMap {
+  string label = 1;
+  types.ShareXY share = 2;
+  bytes n_tilde = 3;
+  bytes h1 = 4;
+  bytes h2 = 5;
+}
