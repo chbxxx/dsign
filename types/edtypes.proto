@@ -1,0 +1,74 @@
+syntax = "proto3";
+package types;
+
+option go_package = "../types";
+
+message EdKeyGenPhase1Msg {
+  string label_from = 1;          //发送该消息的节点下标
+  bytes pub_key_commit = 2;       //公钥commit
+  repeated bytes cof_commit = 3;  //Shamir系数commit
+  bytes shamir_share_pub_key = 4; //点对点加密Share用的公钥
+}
+
+message EdKeyGenPhase2Msg {
+  string label_from = 1;          //发送该消息的节点下标
+  string label_to = 2; //这个要记录发送目标，其他人才好从里面取出来属于自己的信息，用自己的私钥解密。
+  EdShareXY share = 3;   //加密过后的自己的密钥分片中发给别人保存的部分。
+  bytes pub_key = 4; //自己生成出来的私钥分片的
+  bytes blind_factor = 5; //给出我自己的pubkey blind_factor
+
+}
+
+message EdKeyGenPhase3Msg {
+  string label_from = 1;
+  bytes shamir_pub = 2;
+  KeyGenSchnorrProof proof = 3;
+}
+
+message KeyGenSchnorrProof {
+  bytes pub_key = 1;
+  bytes num = 2;
+}
+
+message EdKeySignPhase1Msg {
+  string label_from = 1;          //发送该消息的节点下标
+  bytes extendedR = 2;       //该节点的extendedR
+  bytes commitR = 3;
+
+}
+
+message EdKeySignPhase2Msg {
+  string label_from = 1;          //发送该消息的节点下标
+  bytes proof_alpha_x = 2;
+  bytes proof_alpha_y = 3;
+  bytes proof_t = 4;
+
+
+}
+
+message EdKeySignPhase3Msg {
+  string label_from = 1;          //发送该消息的节点下标
+  bytes sig_partial = 2;
+
+
+}
+
+
+message EdKeyGenData {
+  string label = 1;
+  uint64 sign_threshold = 2;
+  repeated EdParameterMap paras = 3;
+  bytes pub_key_sum = 4;
+  repeated string key_nodes = 5;
+}
+
+message EdParameterMap {
+  string label = 1;
+  EdShareXY share = 2;
+}
+
+
+message EdShareXY {
+  bytes x = 1;
+  bytes y = 2;
+}

@@ -1,4 +1,4 @@
-package primes
+package bhcrypto
 
 import (
 	"crypto/rand"

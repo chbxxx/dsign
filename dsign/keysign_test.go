@@ -4,15 +4,17 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
+	"github.com/bluehelix-chain/dsign/bhcrypto"
+	"github.com/bluehelix-chain/dsign/bhcrypto/bhcheck"
+	"github.com/bluehelix-chain/dsign/bhcrypto/bhs256k1"
+	"github.com/bluehelix-chain/dsign/bhsssa"
 	"math/big"
 	"strconv"
 	"testing"
 
-	"github.com/bluehelix-chain/dsign/commit"
 	"github.com/bluehelix-chain/dsign/communicator"
 	"github.com/bluehelix-chain/dsign/logger"
-	sssa "github.com/bluehelix-chain/sssa-golang"
-	"github.com/btcsuite/btcd/btcec"
+
 	"github.com/radicalrafi/gomorph/gaillier"
 	"github.com/stretchr/testify/assert"
 )
@@ -35,13 +37,13 @@ func TestSchnorrInKeySignWithCheater(t *testing.T) {
 			localComm := communicator.NewLocalCommunicator(dstSignNode, N, label)
 			comm = localComm
 
-			trueKeyGenerater := NewKeyGenerator(label)
+			trueKeyGenerater := NewKeyGenerator(label, logger.DefaultLogger)
 			nodeKey, _, err := trueKeyGenerater.KeyGen(nodeList, T, comm)
 			if err != nil {
 				fmt.Println(err)
 			}
 
-			var evidence *Evidence
+			var evidence *bhcheck.Evidence
 			if label == nodeList[cheater] {
 				fakeSchnorr := &DishonestSchnorr{}
 				signer := NewSigner(label, logger.DefaultLogger).WithSchnorr(fakeSchnorr)
@@ -55,10 +57,10 @@ func TestSchnorrInKeySignWithCheater(t *testing.T) {
 					re := nodeList[cheater] + " SCHNORR PROOF CHECK FAIL"
 					assert.Equal(t, re, err.Error(), "Wrong cheater!")
 					assert.NotNil(t, evidence, "No cheating evidence!")
-					assert.Equal(t, SchnorrCheater, evidence.Type)
+					assert.Equal(t, bhcheck.SchnorrCheater, evidence.Type)
 					for _, v := range evidence.SchnorrCheaterEvidences {
 						assert.Equal(t, nodeList[cheater], v.Label, "Wrong cheater in evidenceList!")
-						temp := CheckPubkeyProof(v.Proof, v.Pubkey)
+						temp := bhcheck.CheckPubkeyProof(v.Proof, v.Pubkey, bhs256k1.S256())
 						assert.Equal(t, false, temp, "Invalid evidence!")
 					}
 					done <- "Exit!"
@@ -97,10 +99,10 @@ func TestSenderRangeProofWithCheater(t *testing.T) {
 			var comm communicator.Communicator
 			localComm := communicator.NewLocalCommunicator(dstSignNode, N, label)
 			comm = localComm
-			var evidence *Evidence
+			var evidence *bhcheck.Evidence
 			var node *Node
 
-			keyGenerater := NewKeyGenerator(label)
+			keyGenerater := NewKeyGenerator(label, logger.DefaultLogger)
 			nodeKey, _, err := keyGenerater.KeyGen(nodeList, T, comm)
 			assert.Equal(t, nil, err, "GetPublicKey error!")
 
@@ -124,13 +126,13 @@ func TestSenderRangeProofWithCheater(t *testing.T) {
 					re := nodeList[cheater] + "K\n" + nodeList[cheater] + "R\n"
 					assert.Equal(t, re, err.Error(), "Wrong cheater!")
 					assert.NotEqual(t, nil, evidence, "No cheating evidence!")
-					assert.Equal(t, SendingCheater, evidence.Type)
+					assert.Equal(t, bhcheck.SendingCheater, evidence.Type)
 					for _, v := range evidence.SendingCheaterEvidences {
 						assert.Equal(t, nodeList[cheater], v.Label, "Wrong cheater in evidenceList!")
-						node.EccN = btcec.S256().Params().N
+						node.EccN = bhs256k1.S256().Params().N
 						node.q = big.NewInt(0).Set(node.EccN)
 						node.qCube = big.NewInt(0).Exp(node.q, big.NewInt(3), nil)
-						temp := node.CheckSenderRangeProof(v.Proof, v.Msg, v.Pubkey)
+						temp := CheckSenderRangeProof(node.NTilde[node.label], node.h1[node.label], node.h2[node.label], node.qCube, node.qCube, v.Proof, v.Msg, v.Pubkey)
 						assert.Equal(t, false, temp, "Invalid evidence!")
 					}
 					done <- "Exit!"
@@ -170,9 +172,9 @@ func TestReceiverRangeProofWithCheater(t *testing.T) {
 			var comm communicator.Communicator
 			localComm := communicator.NewLocalCommunicator(dstSignNode, N, label)
 			comm = localComm
-			var evidence *Evidence
+			var evidence *bhcheck.Evidence
 
-			keyGenerater := NewKeyGenerator(label)
+			keyGenerater := NewKeyGenerator(label, logger.DefaultLogger)
 			nodeKey, _, err := keyGenerater.KeyGen(nodeList, T, comm)
 			assert.Equal(t, nil, err, "GetPublicKey error!")
 
@@ -197,10 +199,10 @@ func TestReceiverRangeProofWithCheater(t *testing.T) {
 					re := nodeList[cheater] + "K\n" + nodeList[cheater] + "R\n"
 					assert.Equal(t, re, x, "Wrong cheater!")
 					assert.NotEqual(t, nil, evidence, "No cheating evidence!")
-					assert.Equal(t, ReceivingCheater, evidence.Type)
+					assert.Equal(t, bhcheck.ReceivingCheater, evidence.Type)
 					for _, v := range evidence.ReceivingCheaterEvidences {
 						assert.Equal(t, nodeList[cheater], v.Label, "Wrong cheater in evidenceList!")
-						node.EccN = btcec.S256().Params().N
+						node.EccN = bhs256k1.S256().Params().N
 						node.q = big.NewInt(0).Set(node.EccN)
 						node.qCube = big.NewInt(0).Exp(node.q, big.NewInt(3), nil)
 						temp := node.CheckReceiverRangeProof(v.Proof, v.M1, v.M2, v.Pubkey)
@@ -243,9 +245,9 @@ func TestSiProofWithCheater(t *testing.T) {
 			var comm communicator.Communicator
 			localComm := communicator.NewLocalCommunicator(dstSignNode, N, label)
 			comm = localComm
-			var evidence *Evidence
+			var evidence *bhcheck.Evidence
 
-			keyGenerater := NewKeyGenerator(label)
+			keyGenerater := NewKeyGenerator(label, logger.DefaultLogger)
 			nodeKey, _, err := keyGenerater.KeyGen(nodeList, T, comm)
 			assert.Equal(t, nil, err, "GetPublicKey error!")
 
@@ -264,7 +266,7 @@ func TestSiProofWithCheater(t *testing.T) {
 					re := nodeList[cheater] + " SiProof Fail"
 					assert.Equal(t, re, x, "Wrong cheater!")
 					assert.NotEqual(t, nil, evidence, "No cheating evidence!")
-					assert.Equal(t, SiProofCheater, evidence.Type)
+					assert.Equal(t, bhcheck.SiProofCheater, evidence.Type)
 					for _, v := range evidence.SiProofCheaterEvidences {
 						assert.Equal(t, nodeList[cheater], v.Label, "Wrong cheater in evidenceList!")
 						node.EccN = v.EccN
@@ -309,9 +311,9 @@ func TestSiCheckWithCheater(t *testing.T) {
 			var comm communicator.Communicator
 			localComm := communicator.NewLocalCommunicator(dstSignNode, N, label)
 			comm = localComm
-			var evidence *Evidence
+			var evidence *bhcheck.Evidence
 
-			keyGenerater := NewKeyGenerator(label)
+			keyGenerater := NewKeyGenerator(label, logger.DefaultLogger)
 			nodeKey, _, err := keyGenerater.KeyGen(nodeList, T, comm)
 			assert.Equal(t, nil, err, "GetPublicKey error!")
 
@@ -329,7 +331,7 @@ func TestSiCheckWithCheater(t *testing.T) {
 				re := "SiCheck Fail"
 				assert.Equal(t, re, x, "Wrong cheater!")
 				assert.NotNil(t, evidence, "No cheating evidence!")
-				assert.Equal(t, SiCheckCheater, evidence.Type)
+				assert.Equal(t, bhcheck.SiCheckCheater, evidence.Type)
 				assert.Equal(t, P, len(evidence.SiCheckCheaterEvidences), "Wrong evidence number!")
 				done <- "Exit!"
 				return
@@ -356,9 +358,9 @@ func TestKeySign(t *testing.T) {
 }
 
 func TestLocalKeySign(t *testing.T) {
-	T := 24
-	P := 24
-	N := 35
+	T := 3
+	P := 4
+	N := 5
 	testLocalSign(T, P, N, t)
 }
 
@@ -376,7 +378,7 @@ func testLocalSign(T, P, N int, t *testing.T) {
 			localComm := communicator.NewLocalCommunicator(dstSignNode, N, label)
 			comm = localComm
 
-			keyGenerater := NewKeyGenerator(label)
+			keyGenerater := NewKeyGenerator(label, logger.DefaultLogger)
 			nodeKey, _, err := keyGenerater.KeyGen(nodeList, T, comm)
 			assert.Equal(t, nil, err, "GetPublicKey error!")
 
@@ -417,12 +419,12 @@ func testSign(T, P, N int, t *testing.T) {
 	str := "123456781234567845678123"
 	hash := []byte(str)
 
-	var prtKey []*btcec.PrivateKey = make([]*btcec.PrivateKey, N)
-	var pubKey []*btcec.PublicKey = make([]*btcec.PublicKey, N)
+	var prtKey []*bhs256k1.PrivateKey = make([]*bhs256k1.PrivateKey, N)
+	var pubKey []*bhs256k1.PublicKey = make([]*bhs256k1.PublicKey, N)
 	var blindFactor []*big.Int = make([]*big.Int, N)
 	var pubKeyCommit [][32]byte = make([][32]byte, N)
 
-	var sig []btcec.Signature = make([]btcec.Signature, P)
+	var sig []bhs256k1.Signature = make([]bhs256k1.Signature, P)
 	var k, r []*big.Int = make([]*big.Int, P), make([]*big.Int, P)
 	var paillierPubKey []*gaillier.PubKey = make([]*gaillier.PubKey, P)
 	var paillierPrtKey []*gaillier.PrivKey = make([]*gaillier.PrivKey, P)
@@ -437,12 +439,12 @@ func testSign(T, P, N int, t *testing.T) {
 	var v []byte = make([]byte, P)
 
 	var coeff []*big.Int = make([]*big.Int, N)
-	var tempShareArray []map[string]sssa.ShareXY = make([]map[string]sssa.ShareXY, N)
-	var cofCommit [][]*btcec.PublicKey = make([][]*btcec.PublicKey, N)
-	var shareReceived map[string][]sssa.ShareXY = make(map[string][]sssa.ShareXY, N)
+	var tempShareArray []map[string]bhsssa.ShareXY = make([]map[string]bhsssa.ShareXY, N)
+	var cofCommit [][]*bhs256k1.PublicKey = make([][]*bhs256k1.PublicKey, N)
+	var shareReceived map[string][]bhsssa.ShareXY = make(map[string][]bhsssa.ShareXY, N)
 
 	for i := range coeff {
-		newPriKey, _ := btcec.NewPrivateKey(btcec.S256())
+		newPriKey, _ := bhs256k1.NewPrivateKey(bhs256k1.S256())
 		re := newPriKey.PublicKey.X
 		coeff[i] = big.NewInt(0).Set(re)
 	}
@@ -450,13 +452,13 @@ func testSign(T, P, N int, t *testing.T) {
 	//GetPublicKey
 	//rewrite InitNode
 	for i := range coeff {
-		tempShareArray[i] = make(map[string]sssa.ShareXY)
-		shareReceived[coeff[i].String()] = make([]sssa.ShareXY, N)
-		prtKey[i], tempShareArray[i], cofCommit[i] = keyGen(T, N, coeff)
+		tempShareArray[i] = make(map[string]bhsssa.ShareXY)
+		shareReceived[coeff[i].String()] = make([]bhsssa.ShareXY, N)
+		prtKey[i], tempShareArray[i], cofCommit[i] = genPkShares(T, N, coeff)
 
 		blindFactor[i], _ = rand.Int(rand.Reader, maxRand)
 		pubKey[i] = prtKey[i].PubKey()
-		pubKeyCommit[i] = commit.GetPubkeyCommit(pubKey[i], blindFactor[i])
+		pubKeyCommit[i] = bhcheck.GetPubkeyCommit(pubKey[i], blindFactor[i], bhs256k1.S256())
 	}
 	for i := range prtKey {
 		for j := range prtKey {
@@ -468,7 +470,7 @@ func testSign(T, P, N int, t *testing.T) {
 	//第0轮消息:发送给Round0MsgSent[]数组里所有LabelTo的节点，包含自己本身
 	//LabelFrom, LabelTo, Share, PubKey, BlindFactor
 	for i := 0; i < N; i++ {
-		assert.True(t, commit.CheckPubkeyCommit(pubKeyCommit[i], pubKey[i], blindFactor[i]), "The commitment of public key is wrong!")
+		assert.True(t, bhcheck.CheckPubkeyCommit(pubKeyCommit[i], pubKey[i], blindFactor[i], bhs256k1.S256()), "The commitment of public key is wrong!")
 		assert.True(t, checkShamirCommit(N, shareReceived[coeff[i].String()][i], shareReceived[coeff[i].String()], cofCommit, pubKey), "The commitment of shamir is wrong!")
 	}
 	pubKeySum := pKSum(pubKey)
@@ -483,7 +485,7 @@ func testSign(T, P, N int, t *testing.T) {
 		k[i], _ = rand.Int(rand.Reader, maxRand)
 		r[i], _ = rand.Int(rand.Reader, maxRand)
 		paillierPubKey[i], paillierPrtKey[i], _ = gaillier.GenerateKeyPair(rand.Reader, 2048)
-		combinedPrtKey[i] = keyCombine(participant, coeff[i].String(), shareReceived[coeff[i].String()])
+		combinedPrtKey[i] = bhsssa.KeyCombine(participant, coeff[i].String(), shareReceived[coeff[i].String()], bhsssa.S256k1Prime)
 		for j := 0; j < P-1; j++ {
 			num, _ := rand.Int(rand.Reader, maxRand)
 			randNumArray[i] = append(randNumArray[i], num)
@@ -492,9 +494,9 @@ func testSign(T, P, N int, t *testing.T) {
 	//第1轮消息:发送给不包含自身的所有其他节点
 	//Label, Message_k, Message_r, SigOthersR, PaillierPubKey
 	for i := 0; i < P; i++ {
-		messageK[i], _ = PaillierEnc(k[i], paillierPubKey[i])
-		messageR[i], _ = PaillierEnc(r[i], paillierPubKey[i])
-		sigOthersRX[i], sigOthersRY[i] = elliptic.Curve.ScalarBaseMult(btcec.S256(), k[i].Bytes())
+		messageK[i], _ = bhcrypto.PaillierEnc(k[i], paillierPubKey[i])
+		messageR[i], _ = bhcrypto.PaillierEnc(r[i], paillierPubKey[i])
+		sigOthersRX[i], sigOthersRY[i] = elliptic.Curve.ScalarBaseMult(bhs256k1.S256(), k[i].Bytes())
 	}
 	//第2轮消息：发送给Round2MsgSent[]数组里所有LabelTo的节点，包含自己本身
 	//LabelFrom, LabelTo, Message_k_response, Message_r_response
@@ -509,7 +511,7 @@ func testSign(T, P, N int, t *testing.T) {
 			if jj > i {
 				jj--
 			}
-			oneCipher, oneR := PaillierEnc(big.NewInt(1), paillierPubKey[j])
+			oneCipher, oneR := bhcrypto.PaillierEnc(big.NewInt(1), paillierPubKey[j])
 			messageKResponse[i][j], _ = getAnotherPart(messageK[j], paillierPubKey[j], randNumArray[i][jj], r[i], oneCipher, oneR)
 			messageRResponse[i][j], _ = getAnotherPart(messageR[j], paillierPubKey[j], randNumArray[i][jj], combinedPrtKey[i], oneCipher, oneR)
 		}
@@ -522,13 +524,13 @@ func testSign(T, P, N int, t *testing.T) {
 			if i == j {
 				continue
 			}
-			temp := paillierDec(messageKResponse[j][i], paillierPrtKey[i])
+			temp := bhcrypto.PaillierDec(messageKResponse[j][i], paillierPrtKey[i])
 			thea[i].Add(thea[i], temp)
 		}
 		for _, v := range randNumArray[i] {
 			thea[i].Sub(thea[i], v)
 		}
-		thea[i].Mod(thea[i], btcec.S256().Params().N)
+		thea[i].Mod(thea[i], bhs256k1.S256().Params().N)
 	}
 	//第4轮消息：发送给所有的节点，包含自己
 	//Sigr, Sigs, V
@@ -543,15 +545,15 @@ func testSign(T, P, N int, t *testing.T) {
 		for j := 0; j < P; j++ {
 			assert.Equal(t, recid, v[j], "V not equal!")
 		}
-		tempSig := btcec.Signature{}
+		tempSig := bhs256k1.Signature{}
 		tempSig.R, tempSig.S = big.NewInt(0), big.NewInt(0)
 		for j := 0; j < P; j++ {
 			tempSig.S.Add(tempSig.S, sigS[j])
 		}
-		tempSig.S.Mod(tempSig.S, btcec.S256().Params().N)
-		tempSig.R.Mod(sigR[0], btcec.S256().Params().N)
+		tempSig.S.Mod(tempSig.S, bhs256k1.S256().Params().N)
+		tempSig.R.Mod(sigR[0], bhs256k1.S256().Params().N)
 		subS := new(big.Int).Sub(big.NewInt(0), tempSig.S)
-		subS = subS.Mod(subS, btcec.S256().Params().N)
+		subS = subS.Mod(subS, bhs256k1.S256().Params().N)
 		if tempSig.S.Cmp(subS) > 0 {
 			tempSig.S = subS
 		}
@@ -565,24 +567,24 @@ func testSign(T, P, N int, t *testing.T) {
 }
 
 //modify CheckShamirCommit()
-func checkShamirCommit(N int, shareOwn sssa.ShareXY, shareReceived []sssa.ShareXY, cofCommit [][]*btcec.PublicKey,
-	pubKey []*btcec.PublicKey) bool {
+func checkShamirCommit(N int, shareOwn bhsssa.ShareXY, shareReceived []bhsssa.ShareXY, cofCommit [][]*bhs256k1.PublicKey,
+	pubKey []*bhs256k1.PublicKey) bool {
 
-	shareSum := sssa.ShareXY{}
+	shareSum := bhsssa.ShareXY{}
 	shareSum.X, shareSum.Y = big.NewInt(0), big.NewInt(0)
 	shareSum.X.Add(shareSum.X, shareOwn.X)
 	for i := 0; i < N; i++ {
 		shareSum.Y.Add(shareSum.Y, shareReceived[i].Y)
 	}
-	finalCommit := make([]*btcec.PublicKey, 0)
+	finalCommit := make([]*bhs256k1.PublicKey, 0)
 	for i := 0; i < N; i++ {
 		if cofCommit[i][0].IsEqual(pubKey[i]) == false {
 			return false
 		}
 	}
 	for i := 0; i < len(cofCommit[1]); i++ {
-		tempPubkey := &btcec.PublicKey{}
-		tempPubkey.Curve = btcec.S256()
+		tempPubkey := &bhs256k1.PublicKey{}
+		tempPubkey.Curve = bhs256k1.S256()
 		tempPubkey.X, tempPubkey.Y = big.NewInt(0), big.NewInt(0)
 		for j := 0; j < N; j++ {
 			tempPubkey.X, tempPubkey.Y = tempPubkey.Add(tempPubkey.X, tempPubkey.Y, cofCommit[j][i].X, cofCommit[j][i].Y)
@@ -595,9 +597,9 @@ func checkShamirCommit(N int, shareOwn sssa.ShareXY, shareReceived []sssa.ShareX
 }
 
 //modify PubKeySum()
-func pKSum(pubKey []*btcec.PublicKey) *btcec.PublicKey {
-	pubKeySum := &btcec.PublicKey{}
-	pubKeySum.Curve = btcec.S256()
+func pKSum(pubKey []*bhs256k1.PublicKey) *bhs256k1.PublicKey {
+	pubKeySum := &bhs256k1.PublicKey{}
+	pubKeySum.Curve = bhs256k1.S256()
 	pubKeySum.X = big.NewInt(0)
 	pubKeySum.Y = big.NewInt(0)
 	for _, v := range pubKey {
@@ -608,9 +610,9 @@ func pKSum(pubKey []*btcec.PublicKey) *btcec.PublicKey {
 
 //modify GetSigR()
 func getSigR(label, P int, k *big.Int, sigOthersRX, sigOthersRY []*big.Int) (*big.Int, *big.Int, *big.Int, *big.Int) {
-	ecdsaPub := btcec.PublicKey{}
-	ecdsaPub.Curve = btcec.S256()
-	resultX, resultY := elliptic.Curve.ScalarBaseMult(btcec.S256(), k.Bytes())
+	ecdsaPub := bhs256k1.PublicKey{}
+	ecdsaPub.Curve = bhs256k1.S256()
+	resultX, resultY := elliptic.Curve.ScalarBaseMult(bhs256k1.S256(), k.Bytes())
 	sigLocalRX := resultX
 	sigLocalRY := resultY
 
@@ -632,7 +634,7 @@ func getSigS(label, P int, hash []byte, r, prtKey *big.Int, messageKResponse [][
 		if i == label {
 			continue
 		}
-		temp1 := paillierDec(messageKResponse[i][label], paillierPrtKey)
+		temp1 := bhcrypto.PaillierDec(messageKResponse[i][label], paillierPrtKey)
 		rd.Add(rd, temp1)
 	}
 	for _, v := range randNumArray {
@@ -646,12 +648,12 @@ func getSigS(label, P int, hash []byte, r, prtKey *big.Int, messageKResponse [][
 		}
 		theaInverse.Add(theaInverse, thea[i])
 	}
-	theaInverse.ModInverse(theaInverse, btcec.S256().Params().N)
-	e := hashToInt(hash, btcec.S256())
+	theaInverse.ModInverse(theaInverse, bhs256k1.S256().Params().N)
+	e := bhcheck.HashToInt(hash, bhs256k1.S256())
 	tempS := new(big.Int).Mul(e, r)
 	rd.Mul(rd, sigR)
 	rd.Add(rd, tempS)
 	rd.Mul(rd, theaInverse)
-	sigS := rd.Mod(rd, btcec.S256().Params().N)
+	sigS := rd.Mod(rd, bhs256k1.S256().Params().N)
 	return theaInverse, sigS
 }
