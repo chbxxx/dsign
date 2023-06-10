@@ -1,7 +1,7 @@
 syntax = "proto3";
-package types;
+package ectypes;
 
-option go_package = "github.com/bluehelix-chain/dsign/types";
+option go_package = "../types";
 
 message KeyGenPhase1Msg {
   string label_from = 1;         //发送该消息的节点下标
@@ -175,7 +175,7 @@ message KeyGenData {
 
 message ParameterMap {
   string label = 1;
-  types.ShareXY share = 2;
+  ectypes.ShareXY share = 2;
   bytes n_tilde = 3;
   bytes h1 = 4;
   bytes h2 = 5;

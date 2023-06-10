@@ -1,45 +1,16 @@
 package types
 
 import (
+	"github.com/bluehelix-chain/dsign/bhcrypto/bhcheck"
+	"github.com/bluehelix-chain/dsign/bhcrypto/bhs256k1"
+	"github.com/bluehelix-chain/dsign/bhsssa"
 	"math/big"
 
-	sssa "github.com/bluehelix-chain/sssa-golang"
-	"github.com/btcsuite/btcd/btcec"
-	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/radicalrafi/gomorph/gaillier"
 )
 
 type SigRNative struct {
 	X, Y *big.Int
-}
-
-type SenderRangeProof struct {
-	Z, W, Mu, S, S1, S2 *big.Int
-}
-
-type ReceiverRangeProof struct {
-	MuX, MuY, Z, ZD, T, V, W, S, S1, S2, T1, T2, XX, XY *big.Int
-}
-
-type SchnorrZKProof struct {
-	Pub *btcec.PublicKey
-	Num *big.Int
-}
-
-//Si相关的零知识证明
-type SiZKProof struct {
-	VX, VY, AX, AY, BX, BY, AlphaX, AlphaY, BetaX, BetaY, T, U *big.Int
-}
-
-//在完成Si的零知识证明检查后，需要在不暴露Si的前提下进行S的正确性的检查
-type SiZKCheck struct {
-	U, T *btcec.PublicKey
-}
-
-type PQZKProof struct {
-	Z []*big.Int
-	X []*big.Int
-	Y *big.Int
 }
 
 func (msg *KeyGenPhase1Msg) GetNativePubKeyCommit() [32]byte {
@@ -52,16 +23,16 @@ func (msg *KeyGenPhase1Msg) SetNativePubKeyCommit(commit [32]byte) {
 	msg.PubKeyCommit = commit[:]
 }
 
-func (msg *KeyGenPhase1Msg) GetNativeCofCommit() []*btcec.PublicKey {
-	data := make([]*btcec.PublicKey, 0)
+func (msg *KeyGenPhase1Msg) GetNativeCofCommit() []*bhs256k1.PublicKey {
+	data := make([]*bhs256k1.PublicKey, 0)
 	for _, v := range msg.CofCommit {
-		temp, _ := btcec.ParsePubKey(v, btcec.S256())
+		temp, _ := bhs256k1.ParsePubKey(v, bhs256k1.S256())
 		data = append(data, temp)
 	}
 	return data
 }
 
-func (msg *KeyGenPhase1Msg) SetNativeCofCommit(commit []*btcec.PublicKey) {
+func (msg *KeyGenPhase1Msg) SetNativeCofCommit(commit []*bhs256k1.PublicKey) {
 	for _, v := range commit {
 		msg.CofCommit = append(msg.CofCommit, v.SerializeCompressed())
 	}
@@ -80,7 +51,7 @@ func (msg *KeyGenPhase1Msg) SetNativeRSAParas(N, h1, h2 *big.Int) {
 	msg.H2 = h2.Bytes()
 }
 
-func (msg *KeyGenPhase1Msg) GetNativePQProof() PQZKProof {
+func (msg *KeyGenPhase1Msg) GetNativePQProof() bhcheck.PQZKProof {
 	var z, x []*big.Int = make([]*big.Int, 0), make([]*big.Int, 0)
 	for _, v := range msg.Proof.Zi {
 		z = append(z, big.NewInt(0).SetBytes(v))
@@ -89,11 +60,11 @@ func (msg *KeyGenPhase1Msg) GetNativePQProof() PQZKProof {
 		x = append(x, big.NewInt(0).SetBytes(v))
 	}
 	temp := big.NewInt(0).SetBytes(msg.Proof.Y)
-	re := PQZKProof{z, x, temp}
+	re := bhcheck.PQZKProof{z, x, temp}
 	return re
 }
 
-func (msg *KeyGenPhase1Msg) SetNativePQProof(p PQZKProof) {
+func (msg *KeyGenPhase1Msg) SetNativePQProof(p bhcheck.PQZKProof) {
 	msg.Proof = &PQProof{}
 	var z, x [][]byte = make([][]byte, 0), make([][]byte, 0)
 	for _, v := range p.Z {
@@ -107,21 +78,21 @@ func (msg *KeyGenPhase1Msg) SetNativePQProof(p PQZKProof) {
 	msg.Proof.Y = p.Y.Bytes()
 }
 
-func (msg *KeyGenPhase1Msg) GetNativePubKey() *btcec.PublicKey {
-	data, _ := btcec.ParsePubKey(msg.ShamirSharePubKey, btcec.S256())
+func (msg *KeyGenPhase1Msg) GetNativePubKey() *bhs256k1.PublicKey {
+	data, _ := bhs256k1.ParsePubKey(msg.ShamirSharePubKey, bhs256k1.S256())
 	return data
 }
 
-func (msg *KeyGenPhase1Msg) SetNativePubKey(pk *btcec.PublicKey) {
+func (msg *KeyGenPhase1Msg) SetNativePubKey(pk *bhs256k1.PublicKey) {
 	msg.ShamirSharePubKey = pk.SerializeCompressed()
 }
 
-func (msg *KeyGenPhase2Msg) GetNativePubKey() *btcec.PublicKey {
-	data, _ := btcec.ParsePubKey(msg.PubKey, btcec.S256())
+func (msg *KeyGenPhase2Msg) GetNativePubKey() *bhs256k1.PublicKey {
+	data, _ := bhs256k1.ParsePubKey(msg.PubKey, bhs256k1.S256())
 	return data
 }
 
-func (msg *KeyGenPhase2Msg) SetNativePubKey(pk *btcec.PublicKey) {
+func (msg *KeyGenPhase2Msg) SetNativePubKey(pk *bhs256k1.PublicKey) {
 	msg.PubKey = pk.SerializeCompressed()
 }
 
@@ -134,39 +105,39 @@ func (msg *KeyGenPhase2Msg) SetNativeBlindFactor(bf *big.Int) {
 	msg.BlindFactor = bf.Bytes()
 }
 
-func (msg *KeyGenPhase2Msg) GetNativeShare(priKey *btcec.PrivateKey) sssa.ShareXY {
-	data := sssa.ShareXY{}
+func (msg *KeyGenPhase2Msg) GetNativeShare(priKey *bhs256k1.PrivateKey) bhsssa.ShareXY {
+	data := bhsssa.ShareXY{}
 	data.X = big.NewInt(0).SetBytes(msg.Share.X)
-	secp256k1PrivKey := secp256k1.NewPrivateKey(priKey.D)
-	yBytes, _ := secp256k1.Decrypt(secp256k1PrivKey, msg.Share.Y)
+	secp256k1PrivKey, _ := bhs256k1.PrivKeyFromBytes(bhs256k1.S256(), priKey.D.Bytes())
+	yBytes, _ := bhs256k1.Decrypt(secp256k1PrivKey, msg.Share.Y)
 	data.Y = big.NewInt(0).SetBytes(yBytes)
 	return data
 }
 
-func (msg *KeyGenPhase2Msg) SetNativeShare(pubKey *btcec.PublicKey, share sssa.ShareXY) {
+func (msg *KeyGenPhase2Msg) SetNativeShare(pubKey *bhs256k1.PublicKey, share bhsssa.ShareXY) {
 	msg.Share = &ShareXY{}
 	msg.Share.X = share.X.Bytes()
-	secp256k1PubKey := secp256k1.PublicKey{Curve: btcec.S256(), X: pubKey.X, Y: pubKey.Y}
-	msg.Share.Y, _ = secp256k1.Encrypt(&secp256k1PubKey, share.Y.Bytes())
+	secp256k1PubKey := bhs256k1.PublicKey{Curve: bhs256k1.S256(), X: pubKey.X, Y: pubKey.Y}
+	msg.Share.Y, _ = bhs256k1.Encrypt(&secp256k1PubKey, share.Y.Bytes())
 }
 
-func (msg *KeyGenPhase3Msg) GetNativeShamirPubKey() *btcec.PublicKey {
-	data, _ := btcec.ParsePubKey(msg.ShamirPub, btcec.S256())
+func (msg *KeyGenPhase3Msg) GetNativeShamirPubKey() *bhs256k1.PublicKey {
+	data, _ := bhs256k1.ParsePubKey(msg.ShamirPub, bhs256k1.S256())
 	return data
 }
 
-func (msg *KeyGenPhase3Msg) SetNativeShamirPubKey(pk *btcec.PublicKey) {
+func (msg *KeyGenPhase3Msg) SetNativeShamirPubKey(pk *bhs256k1.PublicKey) {
 	msg.ShamirPub = pk.SerializeCompressed()
 }
 
-func (msg *KeyGenPhase3Msg) GetNativeSchnorrZKProof() SchnorrZKProof {
-	data := SchnorrZKProof{}
-	data.Pub, _ = btcec.ParsePubKey(msg.Proof.PubKey, btcec.S256())
+func (msg *KeyGenPhase3Msg) GetNativeSchnorrZKProof() bhcheck.SchnorrZKProof {
+	data := bhcheck.SchnorrZKProof{}
+	data.Pub, _ = bhs256k1.ParsePubKey(msg.Proof.PubKey, bhs256k1.S256())
 	data.Num = big.NewInt(0).SetBytes(msg.Proof.Num)
 	return data
 }
 
-func (msg *KeyGenPhase3Msg) SetNativeSchnorrZKProof(p SchnorrZKProof) {
+func (msg *KeyGenPhase3Msg) SetNativeSchnorrZKProof(p bhcheck.SchnorrZKProof) {
 	msg.Proof = &SchnorrProof{}
 	msg.Proof.PubKey = p.Pub.SerializeCompressed()
 	msg.Proof.Num = p.Num.Bytes()
@@ -199,8 +170,8 @@ func (msg *KeySignPhase1Msg) SetNativePaillierPubKey(pk *gaillier.PubKey) {
 	msg.PaillierPubKey.Nsq = pk.Nsq.Bytes()
 }
 
-func GetNativeSenderRangeProof(p InitiatorRangeProof) SenderRangeProof {
-	data := SenderRangeProof{}
+func GetNativeSenderRangeProof(p InitiatorRangeProof) bhcheck.SenderRangeProof {
+	data := bhcheck.SenderRangeProof{}
 	data.Z = big.NewInt(0).SetBytes(p.Z)
 	data.W = big.NewInt(0).SetBytes(p.W)
 	data.Mu = big.NewInt(0).SetBytes(p.Mu)
@@ -210,7 +181,7 @@ func GetNativeSenderRangeProof(p InitiatorRangeProof) SenderRangeProof {
 	return data
 }
 
-func SetNativeSenderRangeProof(rp SenderRangeProof) *InitiatorRangeProof {
+func SetNativeSenderRangeProof(rp bhcheck.SenderRangeProof) *InitiatorRangeProof {
 	p := &InitiatorRangeProof{}
 	p.Z = rp.Z.Bytes()
 	p.W = rp.W.Bytes()
@@ -221,8 +192,8 @@ func SetNativeSenderRangeProof(rp SenderRangeProof) *InitiatorRangeProof {
 	return p
 }
 
-func GetNativeReceiverRangeProof(p ResponderRangeProof) ReceiverRangeProof {
-	data := ReceiverRangeProof{}
+func GetNativeReceiverRangeProof(p ResponderRangeProof) bhcheck.ReceiverRangeProof {
+	data := bhcheck.ReceiverRangeProof{}
 	data.MuX = big.NewInt(0).SetBytes(p.MuX)
 	data.MuY = big.NewInt(0).SetBytes(p.MuY)
 	data.Z = big.NewInt(0).SetBytes(p.Z)
@@ -240,7 +211,7 @@ func GetNativeReceiverRangeProof(p ResponderRangeProof) ReceiverRangeProof {
 	return data
 }
 
-func SetNativeReceiverRangeProof(rp ReceiverRangeProof) *ResponderRangeProof {
+func SetNativeReceiverRangeProof(rp bhcheck.ReceiverRangeProof) *ResponderRangeProof {
 	p := &ResponderRangeProof{}
 	p.MuX = rp.MuX.Bytes()
 	p.MuY = rp.MuY.Bytes()
@@ -259,38 +230,38 @@ func SetNativeReceiverRangeProof(rp ReceiverRangeProof) *ResponderRangeProof {
 	return p
 }
 
-func (msg *KeySignPhase1Msg) GetNativeSenderRangeProofK() SenderRangeProof {
+func (msg *KeySignPhase1Msg) GetNativeSenderRangeProofK() bhcheck.SenderRangeProof {
 	return GetNativeSenderRangeProof(*msg.PaillierRangeProofK)
 }
 
-func (msg *KeySignPhase1Msg) SetNativeSenderRangeProofK(p SenderRangeProof) {
+func (msg *KeySignPhase1Msg) SetNativeSenderRangeProofK(p bhcheck.SenderRangeProof) {
 	msg.PaillierRangeProofK = &InitiatorRangeProof{}
 	msg.PaillierRangeProofK = SetNativeSenderRangeProof(p)
 }
 
-func (msg *KeySignPhase1Msg) GetNativeSenderRangeProofR() SenderRangeProof {
+func (msg *KeySignPhase1Msg) GetNativeSenderRangeProofR() bhcheck.SenderRangeProof {
 	return GetNativeSenderRangeProof(*msg.PaillierRangeProofR)
 }
 
-func (msg *KeySignPhase1Msg) SetNativeSenderRangeProofR(p SenderRangeProof) {
+func (msg *KeySignPhase1Msg) SetNativeSenderRangeProofR(p bhcheck.SenderRangeProof) {
 	msg.PaillierRangeProofR = &InitiatorRangeProof{}
 	msg.PaillierRangeProofR = SetNativeSenderRangeProof(p)
 }
 
-func (msg *KeySignPhase2Msg) GetNativeReceiverRangeProofK() ReceiverRangeProof {
+func (msg *KeySignPhase2Msg) GetNativeReceiverRangeProofK() bhcheck.ReceiverRangeProof {
 	return GetNativeReceiverRangeProof(*msg.PaillierRangeProofK)
 }
 
-func (msg *KeySignPhase2Msg) SetNativeReceiverRangeProofK(p ReceiverRangeProof) {
+func (msg *KeySignPhase2Msg) SetNativeReceiverRangeProofK(p bhcheck.ReceiverRangeProof) {
 	msg.PaillierRangeProofK = &ResponderRangeProof{}
 	msg.PaillierRangeProofK = SetNativeReceiverRangeProof(p)
 }
 
-func (msg *KeySignPhase2Msg) GetNativeReceiverRangeProofR() ReceiverRangeProof {
+func (msg *KeySignPhase2Msg) GetNativeReceiverRangeProofR() bhcheck.ReceiverRangeProof {
 	return GetNativeReceiverRangeProof(*msg.PaillierRangeProofR)
 }
 
-func (msg *KeySignPhase2Msg) SetNativeReceiverRangeProofR(p ReceiverRangeProof) {
+func (msg *KeySignPhase2Msg) SetNativeReceiverRangeProofR(p bhcheck.ReceiverRangeProof) {
 	msg.PaillierRangeProofR = &ResponderRangeProof{}
 	msg.PaillierRangeProofR = SetNativeReceiverRangeProof(p)
 }
@@ -304,14 +275,14 @@ func (msg *KeySignPhase3And4Msg) SetNativeThea(thea *big.Int) {
 	msg.Thea = thea.Bytes()
 }
 
-func (msg *KeySignPhase3And4Msg) GetNativeSchnorrZKProof() SchnorrZKProof {
-	data := SchnorrZKProof{}
-	data.Pub, _ = btcec.ParsePubKey(msg.KiProof.PubKey, btcec.S256())
+func (msg *KeySignPhase3And4Msg) GetNativeSchnorrZKProof() bhcheck.SchnorrZKProof {
+	data := bhcheck.SchnorrZKProof{}
+	data.Pub, _ = bhs256k1.ParsePubKey(msg.KiProof.PubKey, bhs256k1.S256())
 	data.Num = big.NewInt(0).SetBytes(msg.KiProof.Num)
 	return data
 }
 
-func (msg *KeySignPhase3And4Msg) SetNativeSchnorrZKProof(p SchnorrZKProof) {
+func (msg *KeySignPhase3And4Msg) SetNativeSchnorrZKProof(p bhcheck.SchnorrZKProof) {
 	msg.KiProof = &SchnorrProof{}
 	msg.KiProof.PubKey = p.Pub.SerializeCompressed()
 	msg.KiProof.Num = p.Num.Bytes()
@@ -355,8 +326,8 @@ func (msg *KeySignPhase5AMsg) SetNativeCommit(vCommit, aCommit, bCommit [32]byte
 	msg.BCommit = bCommit[:]
 }
 
-func (msg *KeySignPhase5BMsg) GetNativeSiProof() SiZKProof {
-	data := SiZKProof{}
+func (msg *KeySignPhase5BMsg) GetNativeSiProof() bhcheck.SiZKProof {
+	data := bhcheck.SiZKProof{}
 	data.VX = big.NewInt(0).SetBytes(msg.Proof.VX)
 	data.VY = big.NewInt(0).SetBytes(msg.Proof.VY)
 	data.AX = big.NewInt(0).SetBytes(msg.Proof.AX)
@@ -372,7 +343,7 @@ func (msg *KeySignPhase5BMsg) GetNativeSiProof() SiZKProof {
 	return data
 }
 
-func (msg *KeySignPhase5BMsg) SetNativeSiProof(p SiZKProof) {
+func (msg *KeySignPhase5BMsg) SetNativeSiProof(p bhcheck.SiZKProof) {
 	msg.Proof = &SiProof{}
 	msg.Proof.VX = p.VX.Bytes()
 	msg.Proof.VY = p.VY.Bytes()
@@ -400,7 +371,6 @@ func (msg *KeySignPhase5BMsg) SetNativeBlindFactor(v, a, b *big.Int) {
 	msg.ABlindFactor = a.Bytes()
 	msg.BBlindFactor = b.Bytes()
 }
-
 func (msg *KeySignPhase5CMsg) GetNativeCommit() ([32]byte, [32]byte) {
 	u := [32]byte{}
 	copy(u[:], msg.UCommit)
@@ -414,14 +384,14 @@ func (msg *KeySignPhase5CMsg) SetNativeCommit(uCommit, tCommit [32]byte) {
 	msg.TCommit = tCommit[:]
 }
 
-func (msg *KeySignPhase5DMsg) GetNativeSiCheck() SiZKCheck {
-	data := SiZKCheck{}
-	data.T, _ = btcec.ParsePubKey(msg.Check.T, btcec.S256())
-	data.U, _ = btcec.ParsePubKey(msg.Check.U, btcec.S256())
+func (msg *KeySignPhase5DMsg) GetNativeSiCheck() bhcheck.SiZKCheck {
+	data := bhcheck.SiZKCheck{}
+	data.T, _ = bhs256k1.ParsePubKey(msg.Check.T, bhs256k1.S256())
+	data.U, _ = bhs256k1.ParsePubKey(msg.Check.U, bhs256k1.S256())
 	return data
 }
 
-func (msg *KeySignPhase5DMsg) SetNativeSiCheck(p SiZKCheck) {
+func (msg *KeySignPhase5DMsg) SetNativeSiCheck(p bhcheck.SiZKCheck) {
 	msg.Check = &SiCheck{}
 	msg.Check.T = p.T.SerializeCompressed()
 	msg.Check.U = p.U.SerializeCompressed()
